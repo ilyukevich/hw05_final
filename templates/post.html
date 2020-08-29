@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}
+ {% if post_edit %}Редактировать
+ {% else %}Просмотр поста
+ {% endif %}
+{% endblock %}
+
+{% block header %}Запись пользователя @{{ author.get_username }} #{{ post.id }}{% endblock %}
+
+{% block content %}
+{% load user_filters %}
+<main role="main" class="container">
+    <div class="row">
+    {% include "includes/profile_item.html" %}
+    </div>
+
+    <div class="col-md-9">
+        {% include "includes/post_item.html" with post=post %}
+        <!-- Здесь комментарии -->
+        {% include "comments.html" %}
+    </div>
+</main>
+{% endblock %}
