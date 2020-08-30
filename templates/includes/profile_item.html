@@ -24,7 +24,9 @@
                     Записей: {{ posts_count }}
                 </div>
 
-                {% include "includes/follow_button.html" %}
+                {% if user != author %}
+                {% include "includes/follow_button_item.html" %}
+                {% endif %}
 
             </li>
         </ul>

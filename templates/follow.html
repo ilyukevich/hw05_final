@@ -4,7 +4,7 @@
 {% block content %}
     <div class="container">
 
-        {% include "menu.html" with follow=True %}
+        {% include "includes/menu_item.html" with follow=True %}
 
            <h1> Мои избранные авторы </h1>
             <!-- Вывод ленты записей -->
@@ -18,6 +18,6 @@
     </div>
         <!-- Вывод паджинатора -->
         {% if page.has_other_pages %}
-            {% include "paginator.html" with page=page paginator=paginator%}
+            {% include "includes/paginator_item.html" with page=page paginator=paginator%}
         {% endif %}
 {% endblock %}

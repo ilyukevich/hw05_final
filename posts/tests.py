@@ -1,9 +1,21 @@
+# одновременно получилось два шаблона new & new_post, т.к. по предыдущему спринту 5
+# и замечанию об неинформативности названия шаблона new, создал шаблон new_post, а старый удалить забыл:)
+
+# Блок подписки/отписки в собственном профиле. условие добавил в шаблон profile_item.html
+
+# Все шаблоны которые используются в include, вынести в папку includes и переименовал их.
+
+# Проверки методом .exists() во вью profile_unfollow убрал.
+
+# Тесты разнес по разным классам и подправил согласно замечаниям.
+# Разделил по классам на спринт 5 и спринт 6.
+
 from django.test import TestCase, Client
 from .models import Group, Post, User, Follow, Comment
 from django.urls import reverse
 
 from django.core.cache import cache
-
+from django.core.files.uploadedfile import SimpleUploadedFile
 
 
 class ProfileTest(TestCase):
@@ -20,7 +32,6 @@ class ProfileTest(TestCase):
     def search_text_page(self, text):
         """checking the presence of a post on all the necessary pages
         (new entry appeared on all linked pages)"""
-
         search_text = text
         for url in (
             reverse("index"),
@@ -35,7 +46,6 @@ class ProfileTest(TestCase):
 
     def check_fields(self, post_text):
         """checking all fields from context"""
-
         post_get = Post.objects.get(author=self.user_auth, id=self.post.id)
         value = post_text
         self.assertEqual(post_get.text, value)
@@ -45,7 +55,6 @@ class ProfileTest(TestCase):
 
     def test_personal_page(self):
         """After registering a user, his personal page (profile) is created"""
-
         response = self.auth_client.get(reverse("profile", args=[self.user_auth]))
         self.assertEqual(response.status_code, 200)
 
@@ -54,7 +63,6 @@ class ProfileTest(TestCase):
         """test_create_post
         An authorized user can publish a post (new),
         check the author's group, text and number of posts in the database"""
-
         self.text_new = "just test text"
         posts_count_now = Post.objects.filter(author=self.user_auth).count()
         self.post = Post.objects.create(
@@ -107,29 +115,45 @@ class ProfileTest(TestCase):
         self.search_text_page(self.text_edit)
         self.check_fields(self.text_edit)
 
+
+class FollowTest(TestCase):
+    def setUp(self):
+        self.auth_client = Client()
+        self.unauth_client = Client()
+        self.user_auth = User.objects.create_user(username="sarah")
+        self.user_unauth = User.objects.create_user(username="anonimus")
+        self.group = Group.objects.create(title="titlejust", slug="just", description="description1")
+        self.auth_client.force_login(self.user_auth)
+        cache.clear()
+
     def test_404(self):
-        #response = self.auth_client.get(reverse("profile", args=[self.user_auth]))
+        """test 404"""
         response = self.auth_client.get('/go/', follow=True)
         self.assertEqual(response.status_code, 404)
 
-
-    # проверяют страницу конкретной записи с картинкой: на странице есть тег < img >
-    # проверяют, что на главной странице, на странице профайла и на странице группы пост с картинкой
-    # отображается корректно, с тегом < img >
     def test_img_correct_in_post(self):
-        """Тест на создание поста, изменение его с добавлением изображения
-        и проверкой на содержание на нужных страницах тега <img"""
+        """Test for creating a post, changing it with the addition of an image
+         and checking for content on the desired pages of the <img tag"""
+        small_gif = (
+            b'\x47\x49\x46\x38\x39\x61\x01\x00\x01\x00\x00\x00\x00\x21\xf9\x04'
+            b'\x01\x0a\x00\x01\x00\x2c\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02'
+            b'\x02\x4c\x01\x00\x3b'
+        )
+        self.image_create = SimpleUploadedFile(
+            name="create.gif",
+            content=small_gif,
+            content_type="image/gif"
+        )
         self.text_create = "Old just test 4444text11111"
         self.text_edit = "New text111144441"
         self.post = Post.objects.create(
             text=self.text_create,
             author=self.user_auth, group=self.group)
-        with open('media/posts/Снимок_экрана_от_2020-02-16_13-46-29.png', 'rb') as self.img:
-            response = self.auth_client.post(
-                reverse("post_edit",
+        response = self.auth_client.post(
+            reverse("post_edit",
                     kwargs={"username": self.user_auth,
                             "post_id": self.post.id, }),
-                    {'text': self.text_edit, 'group': self.group.id, 'image': self.img})
+                    {'text': self.text_edit, 'group': self.group.id, 'image': self.image_create})
         self.assertEqual(response.status_code, 302)
         post_update = Post.objects.filter(author=self.user_auth).count()
         self.assertEqual(post_update, 1)
@@ -147,18 +171,30 @@ class ProfileTest(TestCase):
 
     # check that protection against downloading non-graphic files is triggered
     def test_shield_not_img(self):
-        with open('media/posts/test.txt', 'rb') as img:
-            self.auth_client.post(
-                reverse(
-                    'new_post'
-                ),
-                {
-                    'author': self.user_auth,
-                    'text': 'post with image test',
-                    'group': self.group.id,
-                    'image': img
-                }
-            )
+        """check that protection against downloading non-graphic files is triggered"""
+        #with open('media/posts/test.txt', 'rb') as img:
+        no_img = SimpleUploadedFile(
+                name="some.txt",
+                content=b'abc',
+                content_type="text/plain",
+        )
+        self.response = self.auth_client.post(
+            reverse(
+                'new_post'
+            ),
+            {
+                'author': self.user_auth,
+                'text': 'post with image test',
+                'group': self.group.id,
+                'image': no_img
+            }
+        )
+        self.assertFormError(self.response,
+                                'form',
+                                'image',
+                                errors='Загрузите правильное изображение. Файл, который вы загрузили, '
+                                        'поврежден или не является изображением.')
+        # additional verification
         upd = Post.objects.count()
         # post is not created
         self.assertEqual(upd, 0)
@@ -192,18 +228,21 @@ class ProfileTest(TestCase):
         self.assertEqual(post_update_3, 2)
 
 
-    def test_auth_follow_unfollow(self):
+    def test_auth_follow(self):
         """An authorized user can subscribe
-        to other users and remove them from subscriptions"""
+        to other users"""
         #follow
-        response = self.auth_client.post(
-            reverse("profile_follow",
-                    kwargs={"username": self.user_unauth}))
-        self.assertEqual(response.status_code, 302)
-        self.assertRedirects(response, reverse("profile", kwargs={"username": self.user_unauth}))
+        self.follow = Follow.objects.create(user=self.user_auth, author=self.user_unauth)
+        follow_count = Follow.objects.count()
+        self.assertEqual(follow_count, 1)
+
+
+    def test_auth_unfollow(self):
+        """An authorized user can remove them from subscriptions"""
+        # follow
+        self.follow = Follow.objects.create(user=self.user_auth, author=self.user_unauth)
         follow_count_next = Follow.objects.count()
         self.assertEqual(follow_count_next, 1)
-
         # unfollow
         response_next = self.auth_client.post(
             reverse("profile_unfollow",
@@ -237,6 +276,27 @@ class ProfileTest(TestCase):
         response = self.auth_client.post(
             reverse("follow_index"), follow=True)
         self.assertContains(response, self.text_new)
+
+
+    def test_new_unfollow_index(self):
+        """A new user record appears in the feed of those who are subscribed
+        to it and does not appear in the feed of those who is not following it"""
+        #follow
+        response = self.auth_client.post(
+            reverse("profile_follow",
+                    kwargs={"username": self.user_unauth}))
+        self.assertEqual(response.status_code, 302)
+        self.assertRedirects(response, reverse("profile", kwargs={"username": self.user_unauth}))
+        follow_count_next = Follow.objects.count()
+        self.assertEqual(follow_count_next, 1)
+        #create new post
+        self.text_new = "new text create"
+        posts_count_now = Post.objects.filter(author=self.user_auth).count()
+        self.post = Post.objects.create(
+            text=self.text_new,
+            author=self.user_unauth, group=self.group)
+        posts_count_last = Post.objects.filter(author=self.user_unauth).count()
+        self.assertEqual(posts_count_last, posts_count_now + 1)
         #checking in the feed of those who are not subscribed
         response = self.unauth_client.post(
             reverse("follow_index"), follow=True)
