@@ -172,9 +172,8 @@ class FollowTest(TestCase):
     # check that protection against downloading non-graphic files is triggered
     def test_shield_not_img(self):
         """check that protection against downloading non-graphic files is triggered"""
-        #with open('media/posts/test.txt', 'rb') as img:
         no_img = SimpleUploadedFile(
-                name="some.txt",
+                name="test.txt",
                 content=b'abc',
                 content_type="text/plain",
         )
@@ -190,10 +189,11 @@ class FollowTest(TestCase):
             }
         )
         self.assertFormError(self.response,
-                                'form',
-                                'image',
-                                errors='Загрузите правильное изображение. Файл, который вы загрузили, '
-                                        'поврежден или не является изображением.')
+                             'form',
+                             'image',
+                             errors='Загрузите правильное изображение. '
+                                    'Файл, который вы загрузили, '
+                                    'поврежден или не является изображением.')
         # additional verification
         upd = Post.objects.count()
         # post is not created
