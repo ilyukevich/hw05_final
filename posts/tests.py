@@ -1,14 +1,7 @@
-# одновременно получилось два шаблона new & new_post, т.к. по предыдущему спринту 5
-# и замечанию об неинформативности названия шаблона new, создал шаблон new_post, а старый удалить забыл:)
-
-# Блок подписки/отписки в собственном профиле. условие добавил в шаблон profile_item.html
-
-# Все шаблоны которые используются в include, вынести в папку includes и переименовал их.
-
-# Проверки методом .exists() во вью profile_unfollow убрал.
-
-# Тесты разнес по разным классам и подправил согласно замечаниям.
-# Разделил по классам на спринт 5 и спринт 6.
+# Проверял что пост появился у подписавшегося способом обращения auth_client на follow_index
+# и поиска там нашего текста.
+# не использовал метод search_text_page, так как нам нужно проверить всего лишь follow_index
+# переделал также и метод test_auth_unfollow
 
 from django.test import TestCase, Client
 from .models import Group, Post, User, Follow, Comment
@@ -126,10 +119,12 @@ class FollowTest(TestCase):
         self.auth_client.force_login(self.user_auth)
         cache.clear()
 
+
     def test_404(self):
         """test 404"""
         response = self.auth_client.get('/go/', follow=True)
         self.assertEqual(response.status_code, 404)
+
 
     def test_img_correct_in_post(self):
         """Test for creating a post, changing it with the addition of an image
@@ -144,16 +139,16 @@ class FollowTest(TestCase):
             content=small_gif,
             content_type="image/gif"
         )
-        self.text_create = "Old just test 4444text11111"
-        self.text_edit = "New text111144441"
+        text_create = "Old just test 4444text11111"
+        text_edit = "New text111144441"
         self.post = Post.objects.create(
-            text=self.text_create,
+            text=text_create,
             author=self.user_auth, group=self.group)
         response = self.auth_client.post(
             reverse("post_edit",
                     kwargs={"username": self.user_auth,
                             "post_id": self.post.id, }),
-                    {'text': self.text_edit, 'group': self.group.id, 'image': self.image_create})
+                    {'text': text_edit, 'group': self.group.id, 'image': self.image_create})
         self.assertEqual(response.status_code, 302)
         post_update = Post.objects.filter(author=self.user_auth).count()
         self.assertEqual(post_update, 1)
@@ -204,26 +199,26 @@ class FollowTest(TestCase):
         """Cache test"""
         post_now = Post.objects.filter(author=self.user_auth).count()
         self.assertEqual(post_now, 0)
-        self.text_create_1 = "Old just test 11111111"
-        self.text_create_2 = "Old just test 22222222"
+        text_create_1 = "Old just test 11111111"
+        text_create_2 = "Old just test 22222222"
         self.post_1 = Post.objects.create(
-            text=self.text_create_1,
+            text=text_create_1,
             author=self.user_auth, group=self.group)
         response = self.auth_client.get(reverse("index"))
-        self.assertContains(response, self.text_create_1)
+        self.assertContains(response, text_create_1)
         post_update = Post.objects.filter(author=self.user_auth).count()
         self.assertEqual(post_update, 1)
         self.post_2 = Post.objects.create(
-            text=self.text_create_2,
+            text=text_create_2,
             author=self.user_auth, group=self.group)
         response_next = self.auth_client.get(reverse("index"))
-        self.assertNotContains(response_next, self.text_create_2)
+        self.assertNotContains(response_next, text_create_2)
         post_update_2 = Post.objects.filter(author=self.user_auth).count()
         self.assertEqual(post_update_2, 2)
         cache.clear()
         response_next_2 = self.auth_client.get(reverse("index"))
-        self.assertContains(response_next_2, self.text_create_1)
-        self.assertContains(response_next_2, self.text_create_2)
+        self.assertContains(response_next_2, text_create_1)
+        self.assertContains(response_next_2, text_create_2)
         post_update_3 = Post.objects.filter(author=self.user_auth).count()
         self.assertEqual(post_update_3, 2)
 
@@ -235,14 +230,36 @@ class FollowTest(TestCase):
         self.follow = Follow.objects.create(user=self.user_auth, author=self.user_unauth)
         follow_count = Follow.objects.count()
         self.assertEqual(follow_count, 1)
+        text_new = "new text create follow"
+        posts_count_now = Post.objects.filter(author=self.user_unauth).count()
+        self.post = Post.objects.create(
+            text=text_new,
+            author=self.user_unauth, group=self.group)
+        posts_count_last = Post.objects.filter(author=self.user_unauth).count()
+        self.assertEqual(posts_count_last, posts_count_now + 1)
+        # check follow_index for auth_client
+        response = self.auth_client.post(
+            reverse("follow_index"), follow=True)
+        self.assertContains(response, text_new)
 
 
     def test_auth_unfollow(self):
         """An authorized user can remove them from subscriptions"""
         # follow
         self.follow = Follow.objects.create(user=self.user_auth, author=self.user_unauth)
-        follow_count_next = Follow.objects.count()
-        self.assertEqual(follow_count_next, 1)
+        follow_count = Follow.objects.count()
+        self.assertEqual(follow_count, 1)
+        text_new = "new text create unfollow"
+        posts_count_now = Post.objects.filter(author=self.user_unauth).count()
+        self.post = Post.objects.create(
+            text=text_new,
+            author=self.user_unauth, group=self.group)
+        posts_count_last = Post.objects.filter(author=self.user_unauth).count()
+        self.assertEqual(posts_count_last, posts_count_now + 1)
+        # check follow_index for auth_client
+        response = self.auth_client.post(
+            reverse("follow_index"), follow=True)
+        self.assertContains(response, text_new)
         # unfollow
         response_next = self.auth_client.post(
             reverse("profile_unfollow",
@@ -251,6 +268,11 @@ class FollowTest(TestCase):
         self.assertRedirects(response_next, reverse("profile", kwargs={"username": self.user_unauth}))
         follow_count_next_2 = Follow.objects.count()
         self.assertEqual(follow_count_next_2, 0)
+        cache.clear()
+        # check follow_index for auth_client after remove subscription
+        response = self.auth_client.post(
+            reverse("follow_index"), follow=True)
+        self.assertNotContains(response, text_new)
 
 
     def test_new_follow_index(self):
@@ -265,17 +287,17 @@ class FollowTest(TestCase):
         follow_count_next = Follow.objects.count()
         self.assertEqual(follow_count_next, 1)
         #create new post
-        self.text_new = "new text create"
+        text_new = "new text create11111"
         posts_count_now = Post.objects.filter(author=self.user_auth).count()
         self.post = Post.objects.create(
-            text=self.text_new,
+            text=text_new,
             author=self.user_unauth, group=self.group)
         posts_count_last = Post.objects.filter(author=self.user_unauth).count()
         self.assertEqual(posts_count_last, posts_count_now + 1)
         #checking in the feed of those who are subscribed
         response = self.auth_client.post(
             reverse("follow_index"), follow=True)
-        self.assertContains(response, self.text_new)
+        self.assertContains(response, text_new)
 
 
     def test_new_unfollow_index(self):
@@ -290,26 +312,26 @@ class FollowTest(TestCase):
         follow_count_next = Follow.objects.count()
         self.assertEqual(follow_count_next, 1)
         #create new post
-        self.text_new = "new text create"
+        text_new = "new text create22222"
         posts_count_now = Post.objects.filter(author=self.user_auth).count()
         self.post = Post.objects.create(
-            text=self.text_new,
+            text=text_new,
             author=self.user_unauth, group=self.group)
         posts_count_last = Post.objects.filter(author=self.user_unauth).count()
         self.assertEqual(posts_count_last, posts_count_now + 1)
         #checking in the feed of those who are not subscribed
         response = self.unauth_client.post(
             reverse("follow_index"), follow=True)
-        self.assertNotContains(response, self.text_new)
+        self.assertNotContains(response, text_new)
 
 
     def test_auth_add_comment(self):
         """Only an authorized user can comment on posts."""
         # create new post
-        self.text_new = "new text create"
+        text_new = "new text create3333"
         self.comment_text = "new comment"
         self.post = Post.objects.create(
-            text=self.text_new,
+            text=text_new,
             author=self.user_auth, group=self.group)
         posts_count_last = Post.objects.filter(author=self.user_auth).count()
         self.assertEqual(posts_count_last, 1)

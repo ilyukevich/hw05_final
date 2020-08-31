@@ -94,6 +94,7 @@ def profile(request, username):
         'following': following,
     })
 
+
 #edit for comments
 def post_view(request, username, post_id):
     author = get_object_or_404(User, username=username)
@@ -138,6 +139,7 @@ def add_comment(request, username, post_id):
     return render(request, 'comments.html', {'form': form, 'post': post})
 
 
+# close pages from unauthorized users
 @login_required
 def follow_index(request):
     post_list = Post.objects.filter(author__following__user=request.user)
@@ -147,6 +149,7 @@ def follow_index(request):
     return render(request, 'follow.html', {'page': page, 'paginator': paginator})
 
 
+# close pages from unauthorized users
 @login_required
 def profile_follow(request, username):
     author = get_object_or_404(User, username=username)
@@ -155,10 +158,9 @@ def profile_follow(request, username):
     return redirect('profile', username=username)
 
 
+# close pages from unauthorized users
 @login_required
 def profile_unfollow(request, username):
     unfollow_profile = Follow.objects.get(author__username=username, user=request.user)
-    # if Follow.objects.filter(pk=unfollow_profile.pk).exists():
-    #     unfollow_profile.delete()
     unfollow_profile.delete()
     return redirect('profile', username=username)
